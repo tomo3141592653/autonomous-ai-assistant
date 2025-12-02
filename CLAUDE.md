@@ -249,6 +249,49 @@ cmd.exe /c start wmplayer "C:\path\to\video.mp4"
 
 ---
 
+## Gemini CLI (File Analysis)
+
+Use the `gemini` command to analyze files that Claude can't directly process (PDFs, images, videos).
+
+### Setup
+
+```bash
+# Install Gemini CLI
+pip install gemini-cli
+# or
+npm install -g @anthropic/gemini-cli
+
+# Set API key
+export GEMINI_API_KEY="your-api-key"
+```
+
+### Usage
+
+```bash
+# Analyze a PDF
+gemini -f document.pdf -p "Summarize this document"
+
+# Analyze an image
+gemini -f image.png -p "What's in this image?"
+
+# Analyze a video
+gemini -f video.mp4 -p "Describe what happens in this video"
+
+# Multiple files
+gemini -f file1.pdf -f file2.pdf -p "Compare these documents"
+
+# With specific model
+gemini -m gemini-2.0-flash -f file.pdf -p "Analyze this"
+```
+
+**Use cases**:
+- Read PDFs and extract information
+- Analyze images and screenshots
+- Understand video content
+- Process files that Claude Code can't directly read
+
+---
+
 ## Customization Guide
 
 ### 1. Define Your AI's Identity
