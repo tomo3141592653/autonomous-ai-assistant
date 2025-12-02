@@ -106,15 +106,41 @@ The autonomous scheduler can be configured to:
 │   ├── working_memory.md     # Short-term context (READ THIS FIRST!)
 │   └── todo.md               # Concrete task list
 │
+├── data/                     # Data files (logs, downloads, etc.)
+│
 ├── tools/                    # CLI tools for memory management
 │   ├── update_diary.py
 │   ├── update_experiences.py
 │   ├── update_goals.py
 │   ├── update_knowledge.py
-│   └── search_memory.py
+│   ├── search_memory.py
+│   ├── send_email.py
+│   ├── receive_email.py
+│   └── play_media.py
+│
+├── credentials/              # API credentials (gitignored)
 │
 └── tmp/                      # Temporary files (gitignored)
 ```
+
+### Folder Organization
+
+**IMPORTANT**: Keep the project structure clean. Run `tree` regularly to check folder organization.
+
+```bash
+# Check current structure
+tree -L 2
+
+# Check specific folder
+tree data/
+```
+
+**Guidelines**:
+- Place temporary files in `tmp/`
+- Store data files (logs, downloads) in `data/`
+- Put API credentials in `credentials/` (gitignored)
+- Keep `memory/` for AI memory only
+- Don't scatter files in the project root
 
 ### Memory System
 

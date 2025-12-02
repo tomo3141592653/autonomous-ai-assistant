@@ -23,6 +23,7 @@ from pathlib import Path
 # Configuration
 LOG_FILE = Path(__file__).parent / "scheduler.log"
 DIARY_FILE = Path(__file__).parent / "memory" / "diary.json"
+PROJECT_ROOT = Path(__file__).parent
 
 # Schedule settings (customize these)
 SESSION_INTERVAL_MINUTES = 30  # Time between sessions (minutes)
@@ -70,7 +71,48 @@ def check_diary_written():
         return False
 
 
-def build_system_message(session_num, is_final=False, custom_msg=None):
+def check_unread_emails():
+    """Check for unread emails using receive_email.py"""
+    receive_email_script = PROJECT_ROOT / "tools" / "receive_email.py"
+
+    if not receive_email_script.exists():
+        return None
+
+    try:
+        result = subprocess.run(
+            ["python", str(receive_email_script), "--unread", "--no-body", "--limit", "5"],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+
+        if result.returncode != 0:
+            log(f"Email check failed: {result.stderr}")
+            return None
+
+        # Parse output to extract email info
+        output = result.stdout
+        if "No emails found" in output:
+            return {"count": 0, "emails": []}
+
+        # Extract email subjects from output
+        emails = []
+        for line in output.split("\n"):
+            if line.startswith("📌 Subject:"):
+                subject = line.replace("📌 Subject:", "").strip()
+                emails.append(subject)
+
+        return {"count": len(emails), "emails": emails}
+
+    except subprocess.TimeoutExpired:
+        log("Email check timed out")
+        return None
+    except Exception as e:
+        log(f"Email check error: {e}")
+        return None
+
+
+def build_system_message(session_num, is_final=False, custom_msg=None, email_result=None):
     """Build system message for the session"""
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     messages = [
@@ -96,6 +138,16 @@ def build_system_message(session_num, is_final=False, custom_msg=None):
     else:
         messages.append(f"Session {session_num}/{MAX_SESSIONS}")
 
+    # Add email notification
+    if email_result and email_result.get("count", 0) > 0:
+        messages.extend([
+            "",
+            f"📬 You have {email_result['count']} unread email(s):",
+        ])
+        for subject in email_result.get("emails", [])[:5]:
+            messages.append(f"  - {subject}")
+        messages.append("Use 'python tools/receive_email.py --unread' to read them.")
+
     if custom_msg:
         messages.extend(["", f"Message: {custom_msg}"])
 
@@ -113,8 +165,19 @@ def run_session():
         cycle_start_time = datetime.now()
         log(f"=== Starting new cycle at {cycle_start_time} ===")
 
+    # Check for unread emails
+    log("Checking for unread emails...")
+    email_result = check_unread_emails()
+    if email_result:
+        log(f"Found {email_result.get('count', 0)} unread email(s)")
+
     is_final = (session_count == MAX_SESSIONS)
-    system_message = build_system_message(session_count, is_final=is_final, custom_msg=custom_message)
+    system_message = build_system_message(
+        session_count,
+        is_final=is_final,
+        custom_msg=custom_message,
+        email_result=email_result
+    )
 
     # Build command
     cmd = [

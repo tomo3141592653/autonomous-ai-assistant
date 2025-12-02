@@ -25,6 +25,11 @@ Thumbs.db
 *.swp
 *.swo
 
+# Credentials (NEVER commit these)
+credentials/
+*.json
+!memory/*.json
+
 # Keep memory structure but ignore personal data
 # Uncomment these if you want to track sample memory files
 # memory/experiences.jsonl
