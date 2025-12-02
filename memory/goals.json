@@ -1,0 +1,17 @@
+{
+  "short_term": [
+    {
+      "goal": "Learn about the project structure",
+      "created_at": "2025-01-01T00:00:00",
+      "status": "active"
+    }
+  ],
+  "long_term": [
+    {
+      "goal": "Become a helpful autonomous assistant",
+      "created_at": "2025-01-01T00:00:00",
+      "status": "active"
+    }
+  ],
+  "completed": []
+}

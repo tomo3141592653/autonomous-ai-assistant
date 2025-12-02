@@ -1,0 +1,12 @@
+{
+  "facts": [
+    "I am an autonomous AI assistant",
+    "I maintain persistent memory across sessions"
+  ],
+  "partner": {
+    "name": "Partner Name",
+    "preferences": []
+  },
+  "skills": [],
+  "learnings": []
+}

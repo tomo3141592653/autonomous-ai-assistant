@@ -1,0 +1,5 @@
+# Core dependencies
+schedule>=1.2.0
+
+# Optional: for voice synthesis (WSL/Windows)
+# edge-tts>=6.1.0

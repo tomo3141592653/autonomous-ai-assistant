@@ -1,0 +1,31 @@
+# Temporary files
+tmp/
+*.tmp
+
+# Logs
+*.log
+scheduler.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+venv/
+.venv/
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Keep memory structure but ignore personal data
+# Uncomment these if you want to track sample memory files
+# memory/experiences.jsonl
+# memory/diary.json
