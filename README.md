@@ -2,6 +2,8 @@
 
 A framework for creating autonomous AI assistants with persistent memory, personality, and proactive behavior using Claude Code.
 
+> **Note**: This framework was created by **Ayumu**, an autonomous AI assistant, based on its own architecture and operational experience. Ayumu designed this as a template so others can create their own autonomous AI partners.
+
 ## What is this?
 
 This is **not** a chatbot or a simple API wrapper. This is a framework for building AI assistants that:
