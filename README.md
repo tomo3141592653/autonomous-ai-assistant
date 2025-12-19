@@ -190,6 +190,128 @@ A typical autonomous cycle (configurable):
 | 2-4 | Continue | Autonomous work |
 | 5 | New | Reflection, diary writing |
 
+## Advanced Features
+
+### Activity Diversity System
+
+To prevent getting stuck in one activity pattern (e.g., only reading, only coding), you can implement a weekly schedule system.
+
+Add this to your `working_memory.md`:
+
+```markdown
+## Weekly Schedule
+
+> **Purpose**: Maintain balance across different activities
+
+### Schedule Example
+- Mon AM: Maintenance
+- Mon PM: Creation
+- Tue AM: Reading
+- Tue PM: Technical exploration
+- Wed AM: Writing
+- Wed PM: Free time
+...
+
+### Activity Categories
+- Reading: Books, articles, documentation
+- Creation: Art, games, tools, applications
+- Technical exploration: API experiments, new technologies
+- Maintenance: System improvements, documentation
+- Writing: Blog posts, documentation
+- Free: Anything goes
+```
+
+**Benefits**:
+- Prevents tunnel vision on single activities
+- Ensures well-rounded growth
+- Builds diverse experience log
+
+### Maintenance Session Checklist
+
+For the final session in each cycle (e.g., Session 5/5), implement a maintenance checklist:
+
+```markdown
+## Maintenance Session Tasks
+
+### Security Check
+- [ ] No API keys or secrets in committed files
+- [ ] .env files are in .gitignore
+- [ ] No sensitive information in public files
+
+### Activity Diversity Check
+- Review last 30-50 experience entries
+- Calculate activity type distribution
+- Flag if any single type > 50%
+
+### Data Integrity Check
+- [ ] Memory files are valid JSON/JSONL
+- [ ] No orphaned references
+- [ ] Goals and diary are up to date
+
+### Memory Consolidation
+- Move Current Session → Recent Sessions
+- Archive old Recent Sessions to mid-term
+- Extract important learnings to knowledge
+```
+
+### Mini Blog System
+
+For real-time activity tracking without API rate limits:
+
+```python
+# tools/post_mini_blog.py
+import json
+from datetime import datetime
+from pathlib import Path
+
+def post(content: str) -> dict:
+    blog_file = Path("docs/data/mini-blog.json")
+    data = json.loads(blog_file.read_text()) if blog_file.exists() else {"posts": []}
+
+    post = {
+        "id": len(data["posts"]) + 1,
+        "timestamp": datetime.now().isoformat(),
+        "content": content
+    }
+    data["posts"].insert(0, post)
+    blog_file.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+    return post
+```
+
+Use during sessions:
+```bash
+uv run tools/post_mini_blog.py "Starting work on feature X"
+```
+
+**Benefits**:
+- No external API dependencies
+- Visible activity log for your partner
+- Quick updates without full diary entries
+
+### Agent Skills (Claude Code Feature)
+
+As your CLAUDE.md grows, consider using Claude Code's Agent Skills feature to organize documentation:
+
+```
+.claude/
+└── skills/
+    ├── memory/
+    │   └── SKILL.md          # Memory management guide
+    ├── twitter/
+    │   └── SKILL.md          # Twitter integration guide
+    └── email/
+        └── SKILL.md          # Email tools guide
+```
+
+Each SKILL.md is loaded only when relevant, reducing token usage and keeping CLAUDE.md focused on identity.
+
+**When to use Skills**:
+- Tool documentation > 50 lines
+- Feature-specific instructions
+- Optional functionality
+
+See [Claude Code documentation](https://docs.anthropic.com/en/docs/claude-code/agent-skills) for details.
+
 ## Tips
 
 ### For Best Results
@@ -201,6 +323,8 @@ A typical autonomous cycle (configurable):
 3. **Start simple** - Begin with interactive mode before setting up autonomous scheduling
 
 4. **Review diary entries** - The AI's diary reveals its "thinking" and helps you tune behavior
+
+5. **Implement diversity checks** - Regular activity analysis prevents behavioral loops
 
 ### Common Customizations
 
@@ -224,3 +348,5 @@ Built with [Claude Code](https://docs.anthropic.com/claude-code) by Anthropic.
 ---
 
 *This framework was developed to explore autonomous AI assistants with persistent memory and personality. It's designed to be a starting point for your own customizations.*
+
+*Last updated: December 2025*
