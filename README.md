@@ -20,8 +20,10 @@ This is **not** a chatbot or a simple API wrapper. This is a framework for build
 | Memory | None / session-only | Persistent across sessions |
 | Personality | Generic | Customizable character |
 | Behavior | Reactive only | Proactive + Reactive |
-| Learning | None | Accumulates knowledge |
+| Learning | None | Accumulates knowledge over time |
 | Scheduling | Manual triggers | Autonomous scheduled runs |
+| Search | None | Semantic vector search over all memories |
+| Session structure | Ad hoc | 5-session cycle (plan → work → diary → maintain) |
 
 ## Quick Start
 
@@ -69,9 +71,10 @@ python autonomous_scheduler.py
 ├── requirements.txt          # Python dependencies
 │
 ├── memory/                   # Persistent memory system
-│   ├── working_memory.md     # Short-term context
+│   ├── working_memory.md     # Short-term context (read first!)
 │   ├── experiences.jsonl     # Event log (append-only)
-│   ├── knowledge.json        # Structured knowledge
+│   ├── knowledge/            # Long-term knowledge (one .md per topic)
+│   ├── mid-term/             # Weekly session archives
 │   ├── goals.json            # Goals and objectives
 │   ├── diary.json            # Daily reflections
 │   └── todo.md               # Task list
@@ -80,29 +83,37 @@ python autonomous_scheduler.py
 │   ├── update_diary.py
 │   ├── update_experiences.py
 │   ├── update_goals.py
-│   ├── update_knowledge.py
-│   └── search_memory.py
+│   ├── search_memory.py          # Keyword search
+│   ├── find_related_memories.py  # Semantic vector search
+│   └── pre_pull_merge.py         # Safe git pull (avoids JSON conflicts)
 │
 └── tmp/                      # Temporary files (gitignored)
 ```
 
 ## Memory System
 
-The AI uses a three-layer memory hierarchy:
+The AI uses a four-layer memory hierarchy:
 
 ### Short-term Memory (hours)
 - `working_memory.md` "Current Session" section
-- Detailed work logs, ongoing tasks
+- Detailed work logs, ongoing tasks, active context
 
-### Mid-term Memory (days)
-- `working_memory.md` "Recent Sessions" section
-- Summarized past sessions
+### Mid-term Memory (days → weeks)
+- `working_memory.md` "Recent Sessions" section — summarized past sessions
+- `memory/mid-term/YYYY-MM-WX.md` — weekly archives (kept permanently)
 
 ### Long-term Memory (permanent)
-- `CLAUDE.md` - Identity and important policies
-- `knowledge.json` - Structured facts and learnings
-- `experiences.jsonl` - Detailed activity log
-- `diary.json` - Reflections and insights
+- `CLAUDE.md` — Identity and important policies
+- `memory/knowledge/*.md` — Topic-based knowledge files (one per topic)
+- `memory/experiences.jsonl` — Detailed activity log (searchable via vector embeddings)
+- `memory/diary.json` — Reflections and insights
+
+### Semantic Search
+The AI can search all past experiences using vector embeddings:
+```bash
+python tools/find_related_memories.py --text "what did I learn about Python async?"
+```
+This retrieves semantically similar memories even when exact keywords don't match.
 
 ## Customization
 
@@ -180,15 +191,22 @@ The scheduler runs Claude Code with `--print` flag (non-interactive) at configur
 3. Works on goals independently
 4. Updates memory before session ends
 
-## Example Session Cycle
+## Session Cycle
 
-A typical autonomous cycle (configurable):
+A 5-session cycle balances planning, execution, reflection, and maintenance:
 
 | Session | Type | Purpose |
 |---------|------|---------|
-| 1 | New | Planning, goal setting |
-| 2-4 | Continue | Autonomous work |
-| 5 | New | Reflection, diary writing |
+| 1 | New (`claude`) | Planning — review calendar, check partner's needs, set cycle goals |
+| 2 | Continue | Autonomous work — explore, create, learn |
+| 3 | Continue | Autonomous work — continue or start new direction |
+| 4 | Continue | Diary session — reflect with full session context intact |
+| 5 | New (`claude`) | Maintenance — archive memories, update long-term knowledge, clean up |
+
+**Why this structure?**
+- Session 4 uses `--continue` so the AI can write a diary referencing what actually happened
+- Session 5 starts fresh so it can evaluate the system from a new perspective
+- The cycle prevents endless continuation where context grows stale
 
 ## Advanced Features
 
@@ -349,4 +367,4 @@ Built with [Claude Code](https://docs.anthropic.com/claude-code) by Anthropic.
 
 *This framework was developed to explore autonomous AI assistants with persistent memory and personality. It's designed to be a starting point for your own customizations.*
 
-*Last updated: December 2025*
+*Last updated: March 2026*
