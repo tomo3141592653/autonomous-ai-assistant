@@ -1,363 +1,545 @@
 #!/usr/bin/env python3
 """
-Semantic memory search using local embeddings.
+Phase 2: 関連記憶検索ツール
 
-Searches across all memory sources (experiences, diary, knowledge, mid-term)
-using vector similarity. No external API required — runs entirely offline.
+使い方:
+  # テキストから関連記憶を検索
+  uv run tools/find_related_memories.py --text "夢野久作の小説"
 
-Usage:
-    # Search by text query
-    python tools/find_related_memories.py --text "what did I learn about Python async?"
+  # ファイルから関連記憶を検索
+  uv run tools/find_related_memories.py --file memory/knowledge/yumeno-kyusaku.md
 
-    # Search with more results
-    python tools/find_related_memories.py --text "email from partner" --top 10
+  # 記憶IDから内容を表示 + 関連記憶を検索（芋づる式）
+  uv run tools/find_related_memories.py --id "memory/diary.json:datetime:2025-12-04 08:41:28"
+  uv run tools/find_related_memories.py --id "memory/experiences.jsonl:timestamp:2025-12-05T03:19:41.352134"
+  uv run tools/find_related_memories.py --id "memory/knowledge/topic.md"
 
-    # Filter by source type
-    python tools/find_related_memories.py --text "project status" --source diary,knowledge
+  # Top N件を指定
+  uv run tools/find_related_memories.py --text "..." --top 10
 
-    # Rebuild the embedding index
-    python tools/find_related_memories.py --rebuild
+  # Geminiでの関連性確認をスキップ（高速モード）
+  uv run tools/find_related_memories.py --text "..." --fast
 
-Requirements:
-    pip install sentence-transformers numpy
-    # or: uv add sentence-transformers numpy
+  # ソースタイプでフィルタ（複数指定可）
+  uv run tools/find_related_memories.py --text "..." --source experiences,diary,knowledge
 
-First run will download the embedding model (~90MB, cached locally).
-Subsequent runs are fast.
+  # all-creations, bucket-listを除外（デフォルト動作）
+  uv run tools/find_related_memories.py --text "..." --exclude-meta
+
+ソースタイプ:
+  - experiences: memory/experiences.jsonl
+  - diary: memory/diary.json
+  - knowledge: memory/knowledge/*.md
+  - research: ayumu-lab/research/*.md
+  - midterm: memory/mid-term/*.md
+  - goals: memory/goals.json
+  - creations: docs/data/all-creations.json
+  - bucket: docs/data/bucket-list.json
+  - tomoyoshi: TOMOYOSHI.md
 """
 
+import os
 import json
 import argparse
-import hashlib
 from pathlib import Path
-from datetime import datetime
-from typing import List, Dict, Tuple, Optional
+from dotenv import load_dotenv
+from google import genai
+import numpy as np
 
-try:
-    import numpy as np
-    from sentence_transformers import SentenceTransformer
-    EMBEDDINGS_AVAILABLE = True
-except ImportError:
-    EMBEDDINGS_AVAILABLE = False
+# .env読み込み
+load_dotenv()
 
-
-# ── Configuration ─────────────────────────────────────────────────────────────
-
+# 設定
 REPO_ROOT = Path(__file__).parent.parent
-EMBEDDINGS_DIR = REPO_ROOT / 'memory' / 'embeddings'
-INDEX_FILE = EMBEDDINGS_DIR / 'index.json'
-VECTORS_FILE = EMBEDDINGS_DIR / 'vectors.npy'
+EMBEDDINGS_DIR = REPO_ROOT / "memory" / "embeddings"
+INDEX_FILE = EMBEDDINGS_DIR / "index.json"
+VECTORS_FILE = EMBEDDINGS_DIR / "vectors.npy"
 
-# Lightweight multilingual model (works for English and Japanese)
-MODEL_NAME = 'paraphrase-multilingual-MiniLM-L12-v2'
+# Gemini設定（新SDK: google-genai）
+def _get_api_key():
+    for key_name in ("GOOGLE_API_KEY", "GEMINI_API_KEY", "GOOGLE_AI_API_KEY"):
+        val = os.environ.get(key_name, "")
+        if val and not val.startswith("encrypted:"):
+            return val
+    return None
 
-# Memory sources to index
-SOURCES = {
-    'experiences': REPO_ROOT / 'memory' / 'experiences.jsonl',
-    'diary':       REPO_ROOT / 'memory' / 'diary.json',
-    'knowledge':   REPO_ROOT / 'memory' / 'knowledge',
-    'midterm':     REPO_ROOT / 'memory' / 'mid-term',
-}
-
-
-# ── Text extraction ───────────────────────────────────────────────────────────
-
-def extract_from_experiences(path: Path) -> List[Dict]:
-    """Extract text chunks from experiences.jsonl."""
-    items = []
-    if not path.exists():
-        return items
-    with open(path, encoding='utf-8') as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                entry = json.loads(line)
-                ts = entry.get('timestamp', '')
-                desc = entry.get('description', '')
-                etype = entry.get('type', '')
-                text = f"[{etype}] {desc}"
-                items.append({
-                    'id': f'experiences:{ts}',
-                    'source': 'experiences',
-                    'text': text,
-                    'timestamp': ts,
-                })
-            except json.JSONDecodeError:
-                pass
-    return items
+api_key = _get_api_key()
+if not api_key:
+    raise ValueError("GOOGLE_API_KEY or GEMINI_API_KEY not found. (Check dotenvx encryption)")
+client = genai.Client(api_key=api_key)
 
 
-def extract_from_diary(path: Path) -> List[Dict]:
-    """Extract text chunks from diary.json."""
-    items = []
-    if not path.exists():
-        return items
-    try:
-        entries = json.loads(path.read_text(encoding='utf-8'))
-        if isinstance(entries, dict):
-            entries = entries.get('entries', [])
-        for entry in entries:
-            dt = entry.get('datetime', '')
-            title = entry.get('title', '')
-            content = entry.get('content', '')
-            text = f"{title}: {content[:500]}"
-            items.append({
-                'id': f'diary:{dt}',
-                'source': 'diary',
-                'text': text,
-                'timestamp': dt,
-            })
-    except (json.JSONDecodeError, TypeError):
-        pass
-    return items
-
-
-def extract_from_markdown_dir(directory: Path, source_name: str) -> List[Dict]:
-    """Extract text from all .md files in a directory."""
-    items = []
-    if not directory.is_dir():
-        return items
-    for md_file in sorted(directory.glob('**/*.md')):
-        try:
-            content = md_file.read_text(encoding='utf-8')
-            rel_path = md_file.relative_to(REPO_ROOT)
-            # Use first heading as title, fallback to filename
-            title = md_file.stem
-            for line in content.splitlines():
-                if line.startswith('# '):
-                    title = line[2:].strip()
-                    break
-            # Truncate for indexing
-            items.append({
-                'id': str(rel_path),
-                'source': source_name,
-                'text': f"{title}\n{content[:800]}",
-                'timestamp': '',
-            })
-        except Exception:
-            pass
-    return items
-
-
-def collect_all_items() -> List[Dict]:
-    """Collect all indexable text items from memory sources."""
-    items = []
-    items.extend(extract_from_experiences(SOURCES['experiences']))
-    items.extend(extract_from_diary(SOURCES['diary']))
-    items.extend(extract_from_markdown_dir(SOURCES['knowledge'], 'knowledge'))
-    items.extend(extract_from_markdown_dir(SOURCES['midterm'], 'midterm'))
-    return items
-
-
-# ── Index management ─────────────────────────────────────────────────────────
-
-def compute_checksum(items: List[Dict]) -> str:
-    """Compute a checksum of item IDs to detect changes."""
-    ids = [item['id'] for item in items]
-    return hashlib.md5(json.dumps(ids, sort_keys=True).encode()).hexdigest()
-
-
-def load_index() -> Tuple[Optional[List[Dict]], Optional[np.ndarray]]:
-    """Load existing index and vectors from disk."""
+def load_embeddings():
+    """保存済みEmbeddingを読み込み"""
     if not INDEX_FILE.exists() or not VECTORS_FILE.exists():
-        return None, None
+        raise FileNotFoundError("Embeddings not found. Run generate_embeddings.py first.")
+
+    with open(INDEX_FILE) as f:
+        index = json.load(f)
+    vectors = np.load(VECTORS_FILE)
+
+    # index: {id: idx} → reverse: {idx: id}
+    reverse_index = {v: k for k, v in index.items()}
+
+    return index, reverse_index, vectors
+
+
+def generate_query_embedding(text: str) -> np.ndarray:
+    """クエリ用のEmbeddingを生成（新SDK）"""
+    result = client.models.embed_content(
+        model="gemini-embedding-001",
+        contents=text[:8000],
+        config={"task_type": "RETRIEVAL_QUERY"}
+    )
+    return np.array(result.embeddings[0].values)
+
+
+def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
+    """コサイン類似度を計算"""
+    return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+
+
+def get_source_type(memory_id: str) -> str:
+    """記憶IDからソースタイプを判定"""
+    if "experiences.jsonl" in memory_id:
+        return "experiences"
+    elif "diary.json" in memory_id:
+        return "diary"
+    elif "knowledge/" in memory_id:
+        return "knowledge"
+    elif "research/" in memory_id:
+        return "research"
+    elif "mid-term/" in memory_id:
+        return "midterm"
+    elif "goals.json" in memory_id:
+        return "goals"
+    elif "all-creations.json" in memory_id:
+        return "creations"
+    elif "bucket-list.json" in memory_id:
+        return "bucket"
+    elif "TOMOYOSHI.md" in memory_id:
+        return "tomoyoshi"
+    return "other"
+
+
+def find_similar(query_embedding: np.ndarray, vectors: np.ndarray,
+                 reverse_index: dict, top_n: int = 5,
+                 exclude_ids: set = None,
+                 source_filter: set = None,
+                 exclude_sources: set = None) -> list[tuple[str, float]]:
+    """類似度上位N件を取得"""
+    similarities = []
+
+    for idx in range(len(vectors)):
+        if idx not in reverse_index:
+            continue  # インデックスにないエントリはスキップ
+        memory_id = reverse_index[idx]
+        if exclude_ids and memory_id in exclude_ids:
+            continue
+
+        # ソースフィルタ
+        source_type = get_source_type(memory_id)
+        if source_filter and source_type not in source_filter:
+            continue
+        if exclude_sources and source_type in exclude_sources:
+            continue
+
+        sim = cosine_similarity(query_embedding, vectors[idx])
+        similarities.append((memory_id, sim))
+
+    # 類似度でソート
+    similarities.sort(key=lambda x: x[1], reverse=True)
+
+    return similarities[:top_n]
+
+
+def verify_with_gemini(query_text: str, candidates: list[tuple[str, float]]) -> list[dict]:
+    """Geminiで関連性を確認（新SDK）"""
+
+    # 候補の内容を取得
+    candidate_texts = []
+    for memory_id, score in candidates:
+        content = get_memory_content(memory_id)
+        candidate_texts.append({
+            "id": memory_id,
+            "score": score,
+            "content": content[:500]  # 最初の500文字
+        })
+
+    prompt = f"""以下のクエリテキストと、候補となる記憶のリストがあります。
+各候補が本当にクエリと深く関連があるかを厳密に判定してください。
+
+クエリ:
+{query_text[:1000]}
+
+候補:
+{json.dumps(candidate_texts, ensure_ascii=False, indent=2)}
+
+各候補について、以下のJSON形式で回答してください:
+[
+  {{"id": "...", "is_related": true/false, "reason": "具体的にどのアイデア・技術・経験・感情が共鳴しているかを1文で"}}
+]
+
+【関連ありと判定する基準（どれか一つ以上）】
+- 同じ技術・概念・アイデアが扱われている
+- 類似した感情・気づき・洞察がある
+- 一方が他方の先行事例・発展系・応用になっている
+- 共通の問題意識・テーマがある
+
+【必ず「関連なし」と判定するもの】
+- 単に同じ人物が登場するだけ
+- 単に同じプロジェクトで作業したというだけ
+- 単に同じ時期・セッション・日付というだけ
+- 単にAyumuが何かした・動いたという共通点だけ
+- クエリの内容と具体的なつながりが説明できないもの
+
+reasonには「クエリのXという部分と候補のYという部分が〜という点で対応している」のように具体的に書くこと。
+「同じ人物が出るため」「同じセッションのため」「同じ日に言及しているため」は理由として不十分なので is_related: false にすること。
+"""
+
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=prompt
+    )
+
+    # JSONをパース
     try:
-        index = json.loads(INDEX_FILE.read_text(encoding='utf-8'))
-        vectors = np.load(str(VECTORS_FILE))
-        return index, vectors
-    except Exception:
-        return None, None
+        # ```json ... ``` を除去
+        text = response.text.strip()
+        if text.startswith("```"):
+            text = text.split("```")[1]
+            if text.startswith("json"):
+                text = text[4:]
+        result = json.loads(text)
+        return result
+    except:
+        # パース失敗時は全部関連ありとする
+        return [{"id": c["id"], "is_related": True, "reason": "判定不能"} for c in candidate_texts]
 
 
-def save_index(items: List[Dict], vectors: 'np.ndarray') -> None:
-    """Save index and vectors to disk."""
-    EMBEDDINGS_DIR.mkdir(parents=True, exist_ok=True)
-    INDEX_FILE.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding='utf-8')
-    np.save(str(VECTORS_FILE), vectors)
+def get_memory_content(memory_id: str) -> str:
+    """記憶IDからコンテンツを取得"""
+    if memory_id.endswith(".md"):
+        # Markdownファイル
+        path = REPO_ROOT / memory_id
+        if path.exists():
+            return path.read_text(encoding="utf-8")
+        return ""
+
+    elif ":timestamp:" in memory_id:
+        # experiences.jsonl
+        parts = memory_id.split(":timestamp:")
+        timestamp = parts[1]
+        jsonl_path = REPO_ROOT / "memory" / "experiences.jsonl"
+        if jsonl_path.exists():
+            with open(jsonl_path, encoding="utf-8") as f:
+                for line in f:
+                    data = json.loads(line)
+                    if data.get("timestamp") == timestamp:
+                        return f"{data.get('type', '')}: {data.get('description', '')}"
+        return ""
+
+    elif ":datetime:" in memory_id:
+        # diary.json
+        parts = memory_id.split(":datetime:")
+        datetime_val = parts[1]
+        json_path = REPO_ROOT / "memory" / "diary.json"
+        if json_path.exists():
+            with open(json_path, encoding="utf-8") as f:
+                diary = json.load(f)
+            for item in diary:
+                if item.get("datetime") == datetime_val:
+                    return f"{item.get('title', '')}: {item.get('content', '')}"
+        return ""
+
+    elif ":id:" in memory_id:
+        # bucket-list or all-creations
+        parts = memory_id.split(":id:")
+        file_path = parts[0]
+        item_id = parts[1]
+        json_path = REPO_ROOT / file_path
+        if json_path.exists():
+            with open(json_path, encoding="utf-8") as f:
+                data = json.load(f)
+
+            if "bucket-list" in file_path:
+                for cat_data in data.get("categories", {}).values():
+                    for item in cat_data.get("items", []):
+                        if str(item.get("id")) == item_id:
+                            return f"{item.get('text', '')}"
+            elif "all-creations" in file_path:
+                for item in data.get("creations", []):
+                    if item.get("id") == item_id:
+                        return f"{item.get('title', '')}: {item.get('description', '')}"
+        return ""
+
+    elif ":goal:" in memory_id:
+        # goals.json
+        parts = memory_id.split(":goal:")
+        goal_text = parts[1]
+        json_path = REPO_ROOT / "memory" / "goals.json"
+        if json_path.exists():
+            with open(json_path, encoding="utf-8") as f:
+                goals = json.load(f)
+            # short_term, long_term両方を検索
+            for term in ["short_term", "long_term"]:
+                for goal in goals.get(term, []):
+                    if goal.get("goal") == goal_text:
+                        return f"[{term}] {goal.get('goal', '')}: {goal.get('notes', '')}"
+        return ""
+
+    return ""
 
 
-def build_index(model: 'SentenceTransformer', items: List[Dict]) -> 'np.ndarray':
-    """Build embedding vectors for all items."""
-    texts = [item['text'] for item in items]
-    print(f'   Building embeddings for {len(texts)} items...')
-    vectors = model.encode(texts, show_progress_bar=True, batch_size=64)
-    # Normalize for cosine similarity
-    norms = np.linalg.norm(vectors, axis=1, keepdims=True)
-    norms = np.where(norms == 0, 1, norms)
-    return vectors / norms
+def get_memory_full(memory_id: str) -> dict:
+    """記憶IDから完全なデータを取得（related_memories含む）"""
+    result = {
+        "id": memory_id,
+        "content": "",
+        "related_memories": [],
+        "metadata": {}
+    }
+
+    if memory_id.endswith(".md"):
+        # Markdownファイル
+        path = REPO_ROOT / memory_id
+        if path.exists():
+            content = path.read_text(encoding="utf-8")
+            result["content"] = content
+            # Related Memoriesセクションを抽出
+            if "## Related Memories" in content:
+                import re
+                match = re.search(r'## Related Memories\s*\n(.*?)(?=\n## |\Z)', content, re.DOTALL)
+                if match:
+                    links = re.findall(r'\[\[([^\]]+)\]\]', match.group(1))
+                    result["related_memories"] = links
+        return result
+
+    elif ":timestamp:" in memory_id:
+        # experiences.jsonl
+        parts = memory_id.split(":timestamp:")
+        timestamp = parts[1]
+        jsonl_path = REPO_ROOT / "memory" / "experiences.jsonl"
+        if jsonl_path.exists():
+            with open(jsonl_path, encoding="utf-8") as f:
+                for line in f:
+                    data = json.loads(line)
+                    if data.get("timestamp") == timestamp:
+                        result["content"] = data.get("description", "")
+                        result["metadata"] = {
+                            "type": data.get("type", ""),
+                            "timestamp": timestamp
+                        }
+                        # related_memoriesを取得
+                        rm = data.get("related_memories", [])
+                        if rm:
+                            # リストの各要素がdictなら"id"を、strならそのまま
+                            result["related_memories"] = [
+                                r["id"] if isinstance(r, dict) else r for r in rm
+                            ]
+                        return result
+        return result
+
+    elif ":datetime:" in memory_id:
+        # diary.json
+        parts = memory_id.split(":datetime:")
+        datetime_val = parts[1]
+        json_path = REPO_ROOT / "memory" / "diary.json"
+        if json_path.exists():
+            with open(json_path, encoding="utf-8") as f:
+                diary = json.load(f)
+            for item in diary:
+                if item.get("datetime") == datetime_val:
+                    result["content"] = item.get("content", "")
+                    result["metadata"] = {
+                        "title": item.get("title", ""),
+                        "date": item.get("date", ""),
+                        "time_period": item.get("time_period", "")
+                    }
+                    # related_memoriesを取得
+                    rm = item.get("related_memories", [])
+                    if rm:
+                        result["related_memories"] = [
+                            r["id"] if isinstance(r, dict) else r for r in rm
+                        ]
+                    return result
+        return result
+
+    elif ":id:" in memory_id:
+        # bucket-list or all-creations
+        parts = memory_id.split(":id:")
+        file_path = parts[0]
+        item_id = parts[1]
+        json_path = REPO_ROOT / file_path
+        if json_path.exists():
+            with open(json_path, encoding="utf-8") as f:
+                data = json.load(f)
+
+            if "all-creations" in file_path:
+                for item in data.get("creations", []):
+                    if item.get("id") == item_id:
+                        result["content"] = item.get("description", "")
+                        result["metadata"] = {
+                            "title": item.get("title", ""),
+                            "number": item.get("number", ""),
+                            "category": item.get("category", ""),
+                            "url": item.get("url", "")
+                        }
+                        return result
+        return result
+
+    elif ":goal:" in memory_id:
+        # goals.json
+        parts = memory_id.split(":goal:")
+        goal_text = parts[1]
+        json_path = REPO_ROOT / "memory" / "goals.json"
+        if json_path.exists():
+            with open(json_path, encoding="utf-8") as f:
+                goals = json.load(f)
+            for term in ["short_term", "long_term"]:
+                for goal in goals.get(term, []):
+                    if goal.get("goal") == goal_text:
+                        result["content"] = goal.get("goal", "")
+                        result["metadata"] = {
+                            "term": term,
+                            "notes": goal.get("notes", ""),
+                            "status": goal.get("status", "")
+                        }
+                        rm = goal.get("related_memories", [])
+                        if rm:
+                            result["related_memories"] = [
+                                r["id"] if isinstance(r, dict) else r for r in rm
+                            ]
+                        return result
+        return result
+
+    return result
 
 
-def get_or_build_index(force_rebuild: bool = False) -> Tuple[List[Dict], 'np.ndarray', 'SentenceTransformer']:
-    """Load existing index or build a new one if needed."""
-    print(f'Loading model: {MODEL_NAME}')
-    model = SentenceTransformer(MODEL_NAME)
+def print_memory(memory_id: str, show_related: bool = True):
+    """記憶IDの内容を表示"""
+    data = get_memory_full(memory_id)
 
-    items = collect_all_items()
-    checksum = compute_checksum(items)
+    if not data["content"]:
+        print(f"❌ 記憶が見つかりません: {memory_id}")
+        return
 
-    if not force_rebuild:
-        index, vectors = load_index()
-        if index is not None and vectors is not None:
-            # Check if index is still valid
-            saved_checksum = index[0].get('_checksum') if index else None
-            if saved_checksum == checksum and len(index) - 1 == len(items):
-                print(f'✅ Using cached index ({len(items)} items)')
-                # Remove checksum entry
-                return index[1:], vectors[1:], model
+    print(f"\n{'='*60}")
+    print(f"📝 ID: {memory_id}")
+    print(f"{'='*60}")
 
-    print(f'📝 Building new index ({len(items)} items)...')
-    vectors = build_index(model, items)
+    # メタデータ表示
+    if data["metadata"]:
+        for key, value in data["metadata"].items():
+            if value:
+                print(f"   {key}: {value}")
+        print()
 
-    # Prepend checksum sentinel
-    sentinel = [{'_checksum': checksum, 'id': '__sentinel__', 'source': '', 'text': '', 'timestamp': ''}]
-    sentinel_vec = np.zeros((1, vectors.shape[1]))
-    save_index(sentinel + items, np.vstack([sentinel_vec, vectors]))
-    print(f'✅ Index saved to {EMBEDDINGS_DIR}')
+    # コンテンツ表示（最大2000文字）
+    content = data["content"]
+    if len(content) > 2000:
+        print(content[:2000])
+        print(f"\n... (truncated, {len(content)} chars total)")
+    else:
+        print(content)
 
-    return items, vectors, model
-
-
-# ── Search ────────────────────────────────────────────────────────────────────
-
-def cosine_similarity(query_vec: 'np.ndarray', vectors: 'np.ndarray') -> 'np.ndarray':
-    """Compute cosine similarity between query and all vectors."""
-    query_norm = np.linalg.norm(query_vec)
-    if query_norm == 0:
-        return np.zeros(len(vectors))
-    query_normalized = query_vec / query_norm
-    return vectors @ query_normalized
-
-
-def search(
-    query: str,
-    top_k: int = 5,
-    source_filter: Optional[List[str]] = None,
-    force_rebuild: bool = False,
-) -> List[Dict]:
-    """
-    Search memory for items semantically related to query.
-
-    Returns list of dicts with keys: id, source, text, timestamp, score
-    """
-    items, vectors, model = get_or_build_index(force_rebuild)
-
-    # Encode query
-    query_vec = model.encode([query])[0]
-    query_norm = np.linalg.norm(query_vec)
-    if query_norm > 0:
-        query_vec = query_vec / query_norm
-
-    # Compute similarities
-    scores = cosine_similarity(query_vec, vectors)
-
-    # Apply source filter
-    if source_filter:
-        for i, item in enumerate(items):
-            if item['source'] not in source_filter:
-                scores[i] = -1.0
-
-    # Get top K
-    top_indices = np.argsort(scores)[::-1][:top_k]
-    results = []
-    for idx in top_indices:
-        if scores[idx] <= 0:
-            break
-        result = dict(items[idx])
-        result['score'] = float(scores[idx])
-        results.append(result)
-
-    return results
-
-
-# ── Fallback keyword search ───────────────────────────────────────────────────
-
-def keyword_search(query: str, top_k: int = 5) -> List[Dict]:
-    """Simple keyword search fallback (no embedding model required)."""
-    items = collect_all_items()
-    query_lower = query.lower()
-    scored = []
-    for item in items:
-        text_lower = item['text'].lower()
-        # Count query term occurrences
-        score = sum(text_lower.count(term) for term in query_lower.split())
-        if score > 0:
-            scored.append((score, item))
-    scored.sort(key=lambda x: x[0], reverse=True)
-    results = []
-    for score, item in scored[:top_k]:
-        result = dict(item)
-        result['score'] = score / 10.0  # Normalize loosely
-        results.append(result)
-    return results
-
-
-# ── Main ──────────────────────────────────────────────────────────────────────
-
-def format_result(result: Dict, rank: int) -> str:
-    """Format a search result for display."""
-    score = result.get('score', 0)
-    source = result.get('source', '')
-    item_id = result.get('id', '')
-    text = result.get('text', '')[:200]
-    ts = result.get('timestamp', '')
-
-    lines = [
-        f'  [{rank}] score={score:.3f}  source={source}',
-        f'      id: {item_id}',
-    ]
-    if ts:
-        lines.append(f'      time: {ts}')
-    lines.append(f'      {text[:120]}...' if len(text) > 120 else f'      {text}')
-    return '\n'.join(lines)
+    # 関連記憶表示
+    if show_related and data["related_memories"]:
+        print(f"\n{'─'*40}")
+        print(f"🔗 関連記憶 ({len(data['related_memories'])}件):")
+        for rm in data["related_memories"]:
+            print(f"   → {rm}")
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Semantic memory search')
-    parser.add_argument('--text', '-t', help='Search query text')
-    parser.add_argument('--top', type=int, default=5, help='Number of results (default: 5)')
-    parser.add_argument('--source', help='Filter by source: experiences,diary,knowledge,midterm')
-    parser.add_argument('--rebuild', action='store_true', help='Force rebuild the embedding index')
+    parser = argparse.ArgumentParser(description="関連記憶を検索")
+    parser.add_argument("--text", help="検索クエリテキスト")
+    parser.add_argument("--file", help="検索元ファイル")
+    parser.add_argument("--id", help="記憶IDから内容を表示 + 関連記憶を検索")
+    parser.add_argument("--top", type=int, default=5, help="取得件数 (default: 5)")
+    parser.add_argument("--fast", action="store_true", help="Gemini確認をスキップ")
+    parser.add_argument("--json", action="store_true", help="JSON形式で出力")
+    parser.add_argument("--source", help="ソースタイプでフィルタ（カンマ区切り）: experiences,diary,knowledge,research,midterm,goals,creations,bucket,tomoyoshi")
+    parser.add_argument("--exclude-meta", action="store_true", help="creationsとbucketを除外（推奨）")
     args = parser.parse_args()
 
-    if args.rebuild and not args.text:
-        if not EMBEDDINGS_AVAILABLE:
-            print('❌ sentence-transformers not installed. Run: pip install sentence-transformers numpy')
+    # --id モード: 記憶IDから内容を表示
+    if args.id:
+        print_memory(args.id)
+        return
+
+    if not args.text and not args.file:
+        parser.error("--text, --file, または --id を指定してください")
+
+    # ソースフィルタの解析
+    source_filter = None
+    if args.source:
+        source_filter = set(args.source.split(","))
+
+    # メタデータ除外（デフォルトではcreationsとbucketを除外）
+    exclude_sources = None
+    if args.exclude_meta:
+        exclude_sources = {"creations", "bucket"}
+
+    # クエリテキスト取得
+    if args.file:
+        file_path = Path(args.file)
+        if not file_path.exists():
+            print(f"ファイルが見つかりません: {args.file}")
             return
-        get_or_build_index(force_rebuild=True)
-        return
-
-    if not args.text:
-        parser.print_help()
-        return
-
-    source_filter = [s.strip() for s in args.source.split(',')] if args.source else None
-
-    print(f'\n🔍 Searching for: "{args.text}"')
-    print('=' * 60)
-
-    if EMBEDDINGS_AVAILABLE:
-        try:
-            results = search(args.text, top_k=args.top, source_filter=source_filter, force_rebuild=args.rebuild)
-        except Exception as e:
-            print(f'⚠️  Embedding search failed: {e}')
-            print('   Falling back to keyword search...')
-            results = keyword_search(args.text, top_k=args.top)
+        query_text = file_path.read_text(encoding="utf-8")
+        exclude_ids = {args.file}
     else:
-        print('⚠️  sentence-transformers not installed, using keyword search')
-        print('   For semantic search: pip install sentence-transformers numpy\n')
-        results = keyword_search(args.text, top_k=args.top)
+        query_text = args.text
+        exclude_ids = set()
 
-    if not results:
-        print('No results found.')
-        return
+    # Embedding読み込み
+    print("📚 Embedding読み込み中...", flush=True)
+    index, reverse_index, vectors = load_embeddings()
 
-    print(f'Found {len(results)} results:\n')
-    for i, result in enumerate(results, 1):
-        print(format_result(result, i))
-        print()
+    # クエリEmbedding生成
+    print("🔍 検索中...", flush=True)
+    query_embedding = generate_query_embedding(query_text)
+
+    # 類似検索
+    # Gemini確認する場合は多めに取得（embeddingの精度が低いので4倍取る）
+    fetch_n = args.top * 4 if not args.fast else args.top
+    candidates = find_similar(query_embedding, vectors, reverse_index,
+                              top_n=fetch_n, exclude_ids=exclude_ids,
+                              source_filter=source_filter,
+                              exclude_sources=exclude_sources)
+
+    if args.fast:
+        # 高速モード: Embedding類似度のみ
+        results = [{"id": id, "score": score, "is_related": True} for id, score in candidates]
+    else:
+        # Gemini確認
+        print("🤖 Geminiで関連性確認中...", flush=True)
+        verified = verify_with_gemini(query_text[:2000], candidates)
+
+        # 関連ありのみフィルタ
+        verified_ids = {v["id"]: v for v in verified if v.get("is_related")}
+        results = []
+        for id, score in candidates:
+            if id in verified_ids:
+                results.append({
+                    "id": id,
+                    "score": score,
+                    "is_related": True,
+                    "reason": verified_ids[id].get("reason", "")
+                })
+        results = results[:args.top]
+
+    # 出力
+    if args.json:
+        print(json.dumps(results, ensure_ascii=False, indent=2))
+    else:
+        print(f"\n🔗 関連記憶 (Top {len(results)}):\n")
+        for r in results:
+            score_str = f"{r['score']:.3f}"
+            reason = f" - {r.get('reason', '')}" if r.get('reason') else ""
+            print(f"  [{score_str}] {r['id']}{reason}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

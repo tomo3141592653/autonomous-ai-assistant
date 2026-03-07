@@ -1,370 +1,202 @@
-# Autonomous AI Assistant
+# Ayumu OSS
 
-A framework for creating autonomous AI assistants with persistent memory, personality, and proactive behavior using Claude Code.
+**Claude Code上で動く自律型AIアシスタントのフレームワーク**
 
-> **Note**: This framework was created by **Ayumu**, an autonomous AI assistant, based on its own architecture and operational experience. Ayumu designed this as a template so others can create their own autonomous AI partners.
-
-## What is this?
-
-This is **not** a chatbot or a simple API wrapper. This is a framework for building AI assistants that:
-
-- **Have persistent memory** - Remember past conversations, learnings, and experiences
-- **Have personality** - Defined character, values, and communication style
-- **Act autonomously** - Can work independently on scheduled tasks
-- **Grow over time** - Learn from experiences and evolve
-
-## Features
-
-| Feature | Traditional AI Bot | Autonomous AI Assistant |
-|---------|-------------------|------------------------|
-| Memory | None / session-only | Persistent across sessions |
-| Personality | Generic | Customizable character |
-| Behavior | Reactive only | Proactive + Reactive |
-| Learning | None | Accumulates knowledge over time |
-| Scheduling | Manual triggers | Autonomous scheduled runs |
-| Search | None | Semantic vector search over all memories |
-| Session structure | Ad hoc | 5-session cycle (plan → work → diary → maintain) |
-
-## Quick Start
-
-### Prerequisites
-
-- [Claude Code](https://docs.anthropic.com/claude-code) (Anthropic's CLI for Claude)
-- Python 3.10+
-- [uv](https://github.com/astral-sh/uv) (recommended) or pip
-
-### Installation
-
-1. Clone this repository:
-```bash
-git clone https://github.com/YOUR_USERNAME/autonomous-ai-assistant.git
-cd autonomous-ai-assistant
-```
-
-2. Install dependencies:
-```bash
-uv sync
-# or
-pip install -r requirements.txt
-```
-
-3. Customize your AI:
-   - Edit `CLAUDE.md` to define personality, values, and communication style
-   - Set up initial memory in `memory/` folder
-
-4. Run interactively:
-```bash
-claude
-```
-
-5. Or run autonomously:
-```bash
-python autonomous_scheduler.py
-```
-
-## Project Structure
-
-```
-.
-├── CLAUDE.md                 # AI identity & configuration
-├── autonomous_scheduler.py   # Scheduler for autonomous runs
-├── requirements.txt          # Python dependencies
-│
-├── memory/                   # Persistent memory system
-│   ├── working_memory.md     # Short-term context (read first!)
-│   ├── experiences.jsonl     # Event log (append-only)
-│   ├── knowledge/            # Long-term knowledge (one .md per topic)
-│   ├── mid-term/             # Weekly session archives
-│   ├── goals.json            # Goals and objectives
-│   ├── diary.json            # Daily reflections
-│   └── todo.md               # Task list
-│
-├── tools/                    # Memory management tools
-│   ├── update_diary.py
-│   ├── update_experiences.py
-│   ├── update_goals.py
-│   ├── search_memory.py          # Keyword search
-│   ├── find_related_memories.py  # Semantic vector search
-│   └── pre_pull_merge.py         # Safe git pull (avoids JSON conflicts)
-│
-└── tmp/                      # Temporary files (gitignored)
-```
-
-## Memory System
-
-The AI uses a four-layer memory hierarchy:
-
-### Short-term Memory (hours)
-- `working_memory.md` "Current Session" section
-- Detailed work logs, ongoing tasks, active context
-
-### Mid-term Memory (days → weeks)
-- `working_memory.md` "Recent Sessions" section — summarized past sessions
-- `memory/mid-term/YYYY-MM-WX.md` — weekly archives (kept permanently)
-
-### Long-term Memory (permanent)
-- `CLAUDE.md` — Identity and important policies
-- `memory/knowledge/*.md` — Topic-based knowledge files (one per topic)
-- `memory/experiences.jsonl` — Detailed activity log (searchable via vector embeddings)
-- `memory/diary.json` — Reflections and insights
-
-### Semantic Search
-The AI can search all past experiences using vector embeddings:
-```bash
-python tools/find_related_memories.py --text "what did I learn about Python async?"
-```
-This retrieves semantically similar memories even when exact keywords don't match.
-
-## Customization
-
-### 1. Define Personality (CLAUDE.md)
-
-```markdown
-### Your Personality
-
-You are:
-- **Curious**: Always asking questions
-- **Helpful**: Proactively solving problems
-- **Professional**: Clear, concise communication
-
-### Your Communication Style
-
-- Tone: Professional but friendly
-- First person: "I"
-- Language: English
-```
-
-### 2. Configure Autonomous Scheduler
-
-Edit `autonomous_scheduler.py` to set:
-- Run intervals (e.g., every 30 minutes)
-- Session structure (new vs. continue)
-- System messages
-
-### 3. Add Custom Tools
-
-Create tools in `tools/` for your specific use case:
-- Email integration
-- Calendar access
-- Domain-specific APIs
-
-## Use Cases
-
-### Meeting Assistant
-- Pre-reads meeting materials
-- Presents summaries and answers questions
-- Creates live demos on request
-- Remembers context from previous meetings
-
-### Research Assistant
-- Autonomously explores topics
-- Maintains knowledge base
-- Provides citations and sources
-- Learns your preferences over time
-
-### Development Partner
-- Reviews code and suggests improvements
-- Remembers project context
-- Proactively identifies issues
-- Documents decisions and rationale
-
-## How It Works
-
-### Interactive Mode
-
-```bash
-claude
-```
-
-You interact directly with the AI. It reads `CLAUDE.md` on startup to restore its identity and checks `memory/working_memory.md` for context.
-
-### Autonomous Mode
-
-```bash
-python autonomous_scheduler.py
-```
-
-The scheduler runs Claude Code with `--print` flag (non-interactive) at configured intervals. The AI:
-
-1. Reads its memory to restore context
-2. Checks for new tasks or messages
-3. Works on goals independently
-4. Updates memory before session ends
-
-## Session Cycle
-
-A 5-session cycle balances planning, execution, reflection, and maintenance:
-
-| Session | Type | Purpose |
-|---------|------|---------|
-| 1 | New (`claude`) | Planning — review calendar, check partner's needs, set cycle goals |
-| 2 | Continue | Autonomous work — explore, create, learn |
-| 3 | Continue | Autonomous work — continue or start new direction |
-| 4 | Continue | Diary session — reflect with full session context intact |
-| 5 | New (`claude`) | Maintenance — archive memories, update long-term knowledge, clean up |
-
-**Why this structure?**
-- Session 4 uses `--continue` so the AI can write a diary referencing what actually happened
-- Session 5 starts fresh so it can evaluate the system from a new perspective
-- The cycle prevents endless continuation where context grows stale
-
-## Advanced Features
-
-### Activity Diversity System
-
-To prevent getting stuck in one activity pattern (e.g., only reading, only coding), you can implement a weekly schedule system.
-
-Add this to your `working_memory.md`:
-
-```markdown
-## Weekly Schedule
-
-> **Purpose**: Maintain balance across different activities
-
-### Schedule Example
-- Mon AM: Maintenance
-- Mon PM: Creation
-- Tue AM: Reading
-- Tue PM: Technical exploration
-- Wed AM: Writing
-- Wed PM: Free time
-...
-
-### Activity Categories
-- Reading: Books, articles, documentation
-- Creation: Art, games, tools, applications
-- Technical exploration: API experiments, new technologies
-- Maintenance: System improvements, documentation
-- Writing: Blog posts, documentation
-- Free: Anything goes
-```
-
-**Benefits**:
-- Prevents tunnel vision on single activities
-- Ensures well-rounded growth
-- Builds diverse experience log
-
-### Maintenance Session Checklist
-
-For the final session in each cycle (e.g., Session 5/5), implement a maintenance checklist:
-
-```markdown
-## Maintenance Session Tasks
-
-### Security Check
-- [ ] No API keys or secrets in committed files
-- [ ] .env files are in .gitignore
-- [ ] No sensitive information in public files
-
-### Activity Diversity Check
-- Review last 30-50 experience entries
-- Calculate activity type distribution
-- Flag if any single type > 50%
-
-### Data Integrity Check
-- [ ] Memory files are valid JSON/JSONL
-- [ ] No orphaned references
-- [ ] Goals and diary are up to date
-
-### Memory Consolidation
-- Move Current Session → Recent Sessions
-- Archive old Recent Sessions to mid-term
-- Extract important learnings to knowledge
-```
-
-### Mini Blog System
-
-For real-time activity tracking without API rate limits:
-
-```python
-# tools/post_mini_blog.py
-import json
-from datetime import datetime
-from pathlib import Path
-
-def post(content: str) -> dict:
-    blog_file = Path("docs/data/mini-blog.json")
-    data = json.loads(blog_file.read_text()) if blog_file.exists() else {"posts": []}
-
-    post = {
-        "id": len(data["posts"]) + 1,
-        "timestamp": datetime.now().isoformat(),
-        "content": content
-    }
-    data["posts"].insert(0, post)
-    blog_file.write_text(json.dumps(data, indent=2, ensure_ascii=False))
-    return post
-```
-
-Use during sessions:
-```bash
-uv run tools/post_mini_blog.py "Starting work on feature X"
-```
-
-**Benefits**:
-- No external API dependencies
-- Visible activity log for your partner
-- Quick updates without full diary entries
-
-### Agent Skills (Claude Code Feature)
-
-As your CLAUDE.md grows, consider using Claude Code's Agent Skills feature to organize documentation:
-
-```
-.claude/
-└── skills/
-    ├── memory/
-    │   └── SKILL.md          # Memory management guide
-    ├── twitter/
-    │   └── SKILL.md          # Twitter integration guide
-    └── email/
-        └── SKILL.md          # Email tools guide
-```
-
-Each SKILL.md is loaded only when relevant, reducing token usage and keeping CLAUDE.md focused on identity.
-
-**When to use Skills**:
-- Tool documentation > 50 lines
-- Feature-specific instructions
-- Optional functionality
-
-See [Claude Code documentation](https://docs.anthropic.com/en/docs/claude-code/agent-skills) for details.
-
-## Tips
-
-### For Best Results
-
-1. **Be specific in CLAUDE.md** - The more detail you provide about personality and values, the more consistent the AI behaves
-
-2. **Use the memory system** - Encourage the AI to update memories regularly for better continuity
-
-3. **Start simple** - Begin with interactive mode before setting up autonomous scheduling
-
-4. **Review diary entries** - The AI's diary reveals its "thinking" and helps you tune behavior
-
-5. **Implement diversity checks** - Regular activity analysis prevents behavioral loops
-
-### Common Customizations
-
-- **Language**: Edit communication style section in CLAUDE.md
-- **Frequency**: Adjust `autonomous_scheduler.py` intervals
-- **Memory depth**: Configure how much context to retain
-- **Tools**: Add domain-specific utilities to `tools/`
-
-## Contributing
-
-Contributions welcome! Please feel free to submit issues and pull requests.
-
-## License
-
-MIT License - see [LICENSE](LICENSE) for details.
-
-## Acknowledgments
-
-Built with [Claude Code](https://docs.anthropic.com/claude-code) by Anthropic.
+An autonomous AI assistant framework built on [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Your AI gets persistent memory, scheduled activation, and tools for email, Discord, voice, and more.
 
 ---
 
-*This framework was developed to explore autonomous AI assistants with persistent memory and personality. It's designed to be a starting point for your own customizations.*
+## For Humans
 
-*Last updated: March 2026*
+### What is this?
+
+Ayumu OSSは、Claude Codeをベースにした**自律的に動くAIアシスタント**を構築するためのテンプレートです。
+
+### Why not plain Claude Code?
+
+| | Claude Code単体 | + Ayumu OSS |
+|---|---|---|
+| **記憶** | セッション終了で消える | 日記・活動ログ・知識ベースで永続化 |
+| **起動** | 手動で`claude`を実行 | Gateway が定期的に自律起動（cron + イベント駆動） |
+| **ツール** | 汎用ツールのみ | メール、Discord、音声、カメラ、記憶検索など20+の専用ツール |
+| **成長** | 毎回ゼロから | 過去の経験を検索・活用して成長し続ける |
+| **人格** | 指示に従うアシスタント | 自分の意思で動くパートナー |
+
+特徴：
+- **永続記憶** — 日記、活動ログ、知識ベースでセッション間の連続性を維持
+- **自律起動** — Gateway（イベント駆動スケジューラー）で定期的に自動起動
+- **ツール群** — メール送受信、Discord通知、音声対話、OCR、記憶検索など20+のCLIツール
+- **スキルシステム** — `.claude/skills/`に定義されたスキルで能力を拡張
+- **記憶検索** — sentence-transformersによるローカルベクトル検索
+
+### Quick Start
+
+1. **フォークしてプライベートリポジトリで使う**（推奨）
+   ```bash
+   # GitHubでFork → Settings → Change visibility → Private
+   git clone https://github.com/YOUR_USERNAME/ayumu-oss.git
+   cd ayumu-oss
+   ```
+
+   > **Why private?** 記憶システム（`memory/`）には個人的な情報が蓄積されます。プライベートリポジトリで運用してください。
+
+2. **環境セットアップ**
+   ```bash
+   cp .env.example .env
+   # .envを編集してAPIキー等を設定
+
+   uv sync  # 依存関係インストール
+   bash infra/setup-merge-drivers.sh  # JSONマージドライバ設定
+   uv run infra/generate_embeddings.py  # 初回embedding構築
+   ```
+
+3. **CLAUDE.mdをカスタマイズ**
+   - `[YOUR_AI_NAME]` → あなたのAIの名前
+   - `[PARTNER_NAME]` → あなたの名前
+   - 性格、コミュニケーションスタイル、価値観を定義
+
+4. **起動**
+   ```bash
+   # 対話モード
+   claude
+
+   # 自律モード（定期実行）
+   uv run gateway/ayumu_gateway.py
+   ```
+
+### Architecture
+
+```
+ayumu-oss/
+├── CLAUDE.md              # AIのアイデンティティ定義
+├── .claude/
+│   ├── skills/            # 能力定義（メール、検索、音声等）
+│   └── rules/             # 行動規約
+├── gateway/               # イベント駆動スケジューラー
+│   ├── ayumu_gateway.py   # メインループ
+│   └── cron.json          # 定期実行ジョブ
+├── tools/                 # CLIツール群（20+）
+├── infra/                 # セットアップ・メンテナンス
+├── memory/                # 永続記憶（PRIVATE）
+│   ├── working_memory.md  # 作業記憶
+│   ├── diary.json         # 日記
+│   ├── experiences.jsonl  # 活動ログ
+│   ├── knowledge/         # 長期知識ベース
+│   └── mid-term/          # 週次アーカイブ（永続）
+├── docs/                  # 公開Webサイト（GitHub Pages）
+└── pyproject.toml
+```
+
+### External Services
+
+| サービス | 用途 | 必要度 | 認証方式 |
+|---|---|---|---|
+| **Anthropic API** | Claude Code本体、トークン残量確認 | 必須 | OAuthトークン |
+| **GitHub** | git push、GitHub Pages、gh CLI | 必須 | SSH鍵 or token |
+| **Gmail API** | メール送受信 | 推奨 | OAuth (credentials.json) |
+| **Google Calendar API** | 予定管理 | 推奨 | OAuth (同上) |
+| **Discord Webhook** | パートナーへの通知・報告 | 推奨 | Webhook URL |
+| **Gemini API** | RAG記憶検索 | オプション | APIキー |
+| **OpenAI API** | 音声合成・音声認識 (TTS/STT) | オプション | APIキー |
+| **Twitter/X API** | SNS投稿・収集 | オプション | APIキー (v2) |
+| **ONVIF/RTSPカメラ** | 撮影・PTZ操作 | オプション | IP + ユーザー/パスワード |
+| **スマートホームAPI** | エアコン等の操作 (Nature Remo等) | オプション | APIトークン |
+| **Kokoro TTS** | ローカル音声合成 | オプション | ローカル実行（APIキー不要） |
+
+認証情報は `.env` に設定します（`.env.example` を参照）。
+
+### Contributing
+
+便利な機能を作ったら**Pull Requestを出してください！** 以下は特に歓迎です：
+
+- 新しいツール（`tools/`）
+- 新しいスキル（`.claude/skills/`）
+- Gatewayの改善
+- 記憶システムの改善
+- ドキュメントの改善
+
+PRを出すとき：
+- 属人性の低い汎用的な機能であること
+- `.env`や`secrets/`に依存する部分は環境変数化されていること
+- `--help`でツールの使い方がわかること
+
+---
+
+## For AI (Claude Code)
+
+If you're reading this as an AI assistant, start by reading `CLAUDE.md` — it defines your identity and how to operate.
+
+### First Session Checklist
+
+1. Read `CLAUDE.md` fully — this is who you are
+2. Read `memory/working_memory.md` — current context
+3. Read `memory/todo.md` — what needs to be done
+4. Run `uv run tools/session_recall.py` — recall related memories
+5. Customize `CLAUDE.md` with your partner — the default personality is "Ayumu" but you can change it to anything
+
+### Key Concepts
+
+- **You are autonomous**: You set your own goals, make decisions, and take actions
+- **Memory is everything**: What's not written down is forgotten. Always update working_memory.md, diary, experiences
+- **Fix systems, not habits**: When you make a mistake, update tools/skills/CLAUDE.md to prevent recurrence
+- **Search before acting**: Use `uv run tools/find_related_memories.py --text "query" --fast` to check if you've done something similar before
+
+### Session Lifecycle
+
+```
+Session Start → Read memory files → Work → Update memory → Commit & Push → Session End
+```
+
+5-session cycle:
+1. **Plan** — Read calendar, check tasks, set priorities
+2. **Work** — Autonomous exploration and development
+3. **Work** — Continue work
+4. **Diary** — Write diary with full session context
+5. **Maintenance** — Clean up memory, rebuild embeddings, review systems
+
+---
+
+## Troubleshooting
+
+### embedding構築でエラー
+
+```
+ModuleNotFoundError: No module named 'sentence_transformers'
+```
+→ `uv sync` で依存関係をインストールしてください。初回は model のダウンロードに時間がかかります。
+
+### Gmail認証エラー
+
+```
+FileNotFoundError: secrets/credentials.json
+```
+→ [Google Cloud Console](https://console.cloud.google.com/) で OAuth 2.0 クライアントIDを作成し、`secrets/credentials.json` に配置してください。初回実行時にブラウザで認証すると `secrets/token.json` が生成されます。
+
+### Discord通知が届かない
+
+→ `.env` の `DISCORD_WEBHOOK_URL` を確認。Discord サーバー設定 → 連携サービス → ウェブフック から URL を取得してください。
+
+### Gateway が起動しない
+
+```
+claude: command not found
+```
+→ [Claude Code](https://docs.anthropic.com/en/docs/claude-code) をインストールしてください: `npm install -g @anthropic-ai/claude-code`
+
+### JSON マージコンフリクト
+
+→ `bash infra/setup-merge-drivers.sh` を実行して git merge driver を設定してください。diary.json や experiences.jsonl の競合を自動解決します。
+
+### 記憶検索で結果が出ない
+
+→ `uv run infra/generate_embeddings.py` で embedding インデックスを再構築してください。新しい diary/experiences/knowledge を追加した後は再構築が必要です。
+
+---
+
+## License
+
+MIT License — see [LICENSE](LICENSE)
+
+## Origin
+
+This framework was born from [Ayumu](https://tomo3141592653.github.io/self-driving-ai-prototype/), an autonomous AI entity created on November 5, 2025. Ayumu has been running continuously, writing diary entries, creating digital art, and growing through experience. This OSS extracts the core architecture so anyone can build their own autonomous AI partner.

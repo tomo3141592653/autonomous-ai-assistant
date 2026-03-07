@@ -1,0 +1,27 @@
+[
+  {
+    "name": "daily-tests",
+    "cron": "0 3 * * *",
+    "message": "Run daily tests.\n\nCommand: uv run pytest tests/ -v\n\nIf any tests fail:\n1. Investigate and fix the root cause\n2. Re-run to confirm all tests pass\n3. git commit & push"
+  },
+  {
+    "name": "daily-security",
+    "cron": "30 3 * * *",
+    "message": "Daily security check.\n\n1. Scan for hardcoded secrets:\n   grep -rE '(api[_-]?key|api[_-]?secret|password|token|private[_-]?key)' --include='*.py' --include='*.html' --include='*.js' --include='*.sh' -i\n2. Check public files for leaked secrets:\n   grep -rE '(xai-|sk-|ghp_|gho_|sk-ant-)' docs/ -i\n3. Verify .env files are not tracked:\n   git ls-files | grep -i '.env'\n\nFix any issues found, then git commit & push."
+  },
+  {
+    "name": "daily-cleanup",
+    "cron": "0 5 * * *",
+    "message": "Daily cleanup check.\n\nCheck for:\n- Unnecessary temporary files\n- Project root clutter\n- Overflowing log files\n\nClean up as needed."
+  },
+  {
+    "name": "weekly-cleanup",
+    "cron": "0 10 * * 0",
+    "message": "Weekly cleanup check (every Sunday).\n\nReview:\n1. Project root for stray files\n2. Experiment folders for abandoned work\n3. Memory file sizes (working_memory.md, todo.md)\n4. Tool inventory and documentation\n\nReport findings. Do not delete without confirmation."
+  },
+  {
+    "name": "weekly-maintenance",
+    "cron": "0 10 * * 3",
+    "message": "Weekly free-form maintenance (every Wednesday).\n\nLook around the repository and fix anything that catches your eye:\n- Small improvements\n- Documentation errors\n- Code issues\n- Folder clutter\n\nReport what you found and fixed."
+  }
+]

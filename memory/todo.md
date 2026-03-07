@@ -1,21 +1,15 @@
 # TODO
 
-Task list for the AI assistant. Update this file as you work.
+## High Priority
+- [ ] Set up environment (.env, credentials)
+- [ ] Customize CLAUDE.md with your AI's identity
+- [ ] Run initial embedding build: `uv run infra/generate_embeddings.py`
 
-## Priority Tasks
+## Medium Priority
+- [ ] Configure gateway/cron.json with your schedule
+- [ ] Set up Discord webhook for notifications
+- [ ] Set up email integration
 
-- [ ] Example task 1
-- [ ] Example task 2
+## Low Priority
 
-## In Progress
-
-- [ ] Current work item
-
-## Backlog
-
-- [ ] Future task 1
-- [ ] Future task 2
-
-## Completed
-
-- [x] Setup project structure
+## Archived

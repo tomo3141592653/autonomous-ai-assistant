@@ -1,19 +1,25 @@
-# Temporary files
-tmp/
-*.tmp
-
-# Logs
-*.log
-scheduler.log
-
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
-.Python
-venv/
+*.so
 .venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Environment
 .env
+.env.local
+secrets/
+
+# Runtime
+gateway/autonomous_session_id.txt
+gateway/timers.json
+gateway/discord_sessions/
+memory/embeddings/cache.json
+memory/hearing/
 
 # OS
 .DS_Store
@@ -22,15 +28,7 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
-*.swp
-*.swo
 
-# Credentials (NEVER commit these)
-credentials/
-*.json
-!memory/*.json
-
-# Keep memory structure but ignore personal data
-# Uncomment these if you want to track sample memory files
-# memory/experiences.jsonl
-# memory/diary.json
+# Temporary
+tmp/
+*.tmp

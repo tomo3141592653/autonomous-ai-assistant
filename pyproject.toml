@@ -1,0 +1,38 @@
+[project]
+name = "ayumu-oss"
+version = "0.1.0"
+description = "Autonomous AI assistant framework built on Claude Code"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+
+dependencies = [
+    "google-auth>=2.0",
+    "google-auth-oauthlib>=1.0",
+    "google-api-python-client>=2.0",
+    "sentence-transformers>=2.0",
+    "numpy>=1.24",
+    "requests>=2.28",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+voice = [
+    "sounddevice",
+    "soundfile",
+    "openai",
+]
+camera = [
+    "onvif-zeep",
+    "opencv-python",
+]
+ocr = [
+    "pytesseract",
+    "pdf2image",
+    "Pillow",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=7.0",
+]

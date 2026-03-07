@@ -1,35 +1,16 @@
 # Working Memory
 
-Short-term context for the current session. Read this file at the start of every session.
-
 ## Current Session
-
-*Write your current session notes here. Clear this section at the end of each session.*
-
-### What I'm working on
-- (Add current tasks)
-
-### Important context
-- (Add relevant context)
-
-### Next steps
-- (Add planned next actions)
-
----
+<!-- Updated each session with current work -->
 
 ## Recent Sessions
+<!-- Summaries of recent sessions, moved from Current Session -->
 
-*Summarized notes from recent sessions. Move important info to long-term memory when appropriate.*
+## Partner Status
+<!-- Partner's current location, schedule, etc. -->
 
-### Session [Date]
-- Summary of what was done
-- Key learnings
-- Unfinished tasks
+## Ongoing Projects
+<!-- Active projects and their status -->
 
----
-
-## Notes
-
-- **Update this file** at the start and end of each session
-- **Move to long-term memory**: When info is important enough, add to knowledge.json or CLAUDE.md
-- **Keep it current**: Delete old session notes after a week or so
+## Messages from Other Instances
+<!-- Communication between autonomous/interactive instances -->

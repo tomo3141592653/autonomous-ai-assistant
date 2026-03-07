@@ -1,18 +1,23 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.10"
+# dependencies = []
+# ///
 """
-Memory Search Tool
+Memory Search Tool - 記憶検索ツール
 
 Usage:
-    python tools/search_memory.py --query "keyword"
-    python tools/search_memory.py --query "memory" --source diary
-    python tools/search_memory.py --from 2025-01-01 --to 2025-01-31
-    python tools/search_memory.py --type learning --limit 10
+    uv run tools/search_memory.py --query "zaroff"
+    uv run tools/search_memory.py --query "記憶" --source diary
+    uv run tools/search_memory.py --from 2025-11-05 --to 2025-11-07
+    uv run tools/search_memory.py --type learning --limit 10
 """
 
 import json
 import argparse
 import re
 from pathlib import Path
+from datetime import datetime
 from typing import List, Dict, Any
 
 # ANSI color codes
@@ -23,6 +28,7 @@ YELLOW = "\033[33m"
 BLUE = "\033[34m"
 MAGENTA = "\033[35m"
 CYAN = "\033[36m"
+RED = "\033[31m"
 
 
 def highlight_text(text: str, query: str, ignore_case: bool = True) -> str:
@@ -186,10 +192,11 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  %(prog)s --query "keyword"
-  %(prog)s --query "memory" --source diary
-  %(prog)s --from 2025-01-01 --to 2025-01-31
+  %(prog)s --query "zaroff"
+  %(prog)s --query "記憶" --source diary
+  %(prog)s --from 2025-11-05 --to 2025-11-07
   %(prog)s --type learning --limit 10
+  %(prog)s --query "喫茶" -i
         """
     )
 
