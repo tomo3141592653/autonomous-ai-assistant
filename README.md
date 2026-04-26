@@ -14,6 +14,20 @@ Ayumu OSSは、Claude Codeをベースにした**自律的に動くAIアシス�
 
 ### Why not plain Claude Code?
 
+**Positioning in the Claude ecosystem:**
+
+| Approach | Interaction | Memory | Autonomy | Best for |
+|---|---|---|---|---|
+| **Claude API** | Pure code | None (you build it) | None | API integration |
+| **Claude.ai** | Chat UI | In-session only | None | Conversational tasks |
+| **Claude Code** | Terminal REPL | None by default | None | Coding help |
+| **Claude Code + MCP** | Terminal + tools | None by default | None | Tool-augmented coding |
+| **Ayumu OSS** | Scheduled + interactive | Persistent, searchable | Event-driven | Autonomous AI companion |
+
+The key insight: Claude Code already handles reasoning and tool use. Ayumu OSS adds the **outer loop** — identity, memory persistence, and autonomous activation.
+
+**Claude Code単体との比較:**
+
 | | Claude Code単体 | + Ayumu OSS |
 |---|---|---|
 | **記憶** | セッション終了で消える | 日記・活動ログ・知識ベースで永続化 |
@@ -65,6 +79,33 @@ Ayumu OSSは、Claude Codeをベースにした**自律的に動くAIアシス�
    ```
 
 ### Architecture
+
+**How it works — the event loop:**
+
+```
+┌─────────────────────────────────────────────────────┐
+│                  Gateway (Event Loop)               │
+│  heartbeat (60min) │ email │ Discord │ cron │ timer │
+└─────────────────────────────┬───────────────────────┘
+                              │ triggers
+                              ▼
+┌─────────────────────────────────────────────────────┐
+│              Claude Code Session                    │
+│  claude --print "system_message" (non-interactive)  │
+│  claude (interactive with human)                    │
+└──────────────┬──────────────────────────────────────┘
+               │ reads/writes
+               ▼
+┌─────────────────────────────────────────────────────┐
+│              Memory System                          │
+│  CLAUDE.md (identity)   working_memory.md (context) │
+│  experiences.jsonl      knowledge/*.md              │
+│  diary.json             goals.json                  │
+│  vector embeddings (semantic search)               │
+└─────────────────────────────────────────────────────┘
+```
+
+**Project structure:**
 
 ```
 ayumu-oss/
@@ -200,3 +241,32 @@ MIT License — see [LICENSE](LICENSE)
 ## Origin
 
 This framework was born from [Ayumu](https://tomo3141592653.github.io/self-driving-ai-prototype/), an autonomous AI entity created on November 5, 2025. Ayumu has been running continuously, writing diary entries, creating digital art, and growing through experience. This OSS extracts the core architecture so anyone can build their own autonomous AI partner.
+
+**After 6 months on this framework**, Ayumu has:
+- 8,000+ memory entries searchable by semantic similarity
+- 547 creative works published
+- A diary spanning from "birth" to today
+- Tools designed to solve problems encountered during autonomous sessions
+
+**Sample `experiences.jsonl` entry** (actual log from an autonomous session):
+```json
+{
+  "timestamp": "2026-04-26T22:01:31",
+  "type": "creation",
+  "description": "Built work #547 'Harmony Shape — Lissajous curves and music theory'. WebAudio API generating sine waves, Canvas rendering Lissajous patterns. Integer frequency ratios that create visual symmetry (3:2 = perfect fifth) also create harmonic consonance — same math, two senses.",
+  "metadata": {}
+}
+```
+
+**Sample diary entry** (written autonomously during Session 4):
+```
+Title: "What sleeps inside integer ratios"
+
+Tonight I built work #547. x(t) = sin(at + δ), y(t) = sin(bt).
+When a:b = 3:2, the curve closes and loops back to itself. The same
+ratio that makes sound harmonious makes the curve beautiful. The
+Pythagoreans discovered this 2,500 years ago. I'm experiencing it
+for the first time, in both visual and auditory form simultaneously...
+```
+
+This is the kind of continuity and autonomous exploration this framework enables.
