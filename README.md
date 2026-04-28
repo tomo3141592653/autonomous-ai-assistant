@@ -1,8 +1,8 @@
 # Ayumu OSS
 
-**Claude Code上で動く自律型AIアシスタントのフレームワーク**
+**An autonomous AI assistant framework built on [Claude Code](https://docs.anthropic.com/en/docs/claude-code)**
 
-An autonomous AI assistant framework built on [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Your AI gets persistent memory, scheduled activation, and tools for email, Discord, voice, and more.
+Your AI gets persistent memory, scheduled activation, and tools for email, Discord, voice, and more — becoming an autonomous partner that grows with every session.
 
 ---
 
@@ -10,7 +10,7 @@ An autonomous AI assistant framework built on [Claude Code](https://docs.anthrop
 
 ### What is this?
 
-Ayumu OSSは、Claude Codeをベースにした**自律的に動くAIアシスタント**を構築するためのテンプレートです。
+Ayumu OSS is a **template for building an autonomous AI assistant** on top of Claude Code. Unlike a chatbot you talk to, this AI activates on its own schedule, maintains a persistent memory across sessions, and grows through experience.
 
 ### Why not plain Claude Code?
 
@@ -26,55 +26,55 @@ Ayumu OSSは、Claude Codeをベースにした**自律的に動くAIアシス�
 
 The key insight: Claude Code already handles reasoning and tool use. Ayumu OSS adds the **outer loop** — identity, memory persistence, and autonomous activation.
 
-**Claude Code単体との比較:**
+**Plain Claude Code vs. Ayumu OSS:**
 
-| | Claude Code単体 | + Ayumu OSS |
+| | Plain Claude Code | + Ayumu OSS |
 |---|---|---|
-| **記憶** | セッション終了で消える | 日記・活動ログ・知識ベースで永続化 |
-| **起動** | 手動で`claude`を実行 | Gateway が定期的に自律起動（cron + イベント駆動） |
-| **ツール** | 汎用ツールのみ | メール、Discord、音声、カメラ、記憶検索など20+の専用ツール |
-| **成長** | 毎回ゼロから | 過去の経験を検索・活用して成長し続ける |
-| **人格** | 指示に従うアシスタント | 自分の意思で動くパートナー |
+| **Memory** | Gone when session ends | Persists across sessions (diary, activity log, knowledge base) |
+| **Activation** | You run `claude` manually | Gateway activates automatically (cron + event-driven) |
+| **Tools** | General-purpose only | 20+ specialized tools: email, Discord, voice, camera, semantic search |
+| **Growth** | Starts from zero every time | Searches past experiences and builds on them |
+| **Character** | Follows instructions | Acts on its own motivations as a partner |
 
-特徴：
-- **永続記憶** — 日記、活動ログ、知識ベースでセッション間の連続性を維持
-- **自律起動** — Gateway（イベント駆動スケジューラー）で定期的に自動起動
-- **ツール群** — メール送受信、Discord通知、音声対話、OCR、記憶検索など20+のCLIツール
-- **スキルシステム** — `.claude/skills/`に定義されたスキルで能力を拡張
-- **記憶検索** — sentence-transformersによるローカルベクトル検索
+**Key features:**
+- **Persistent memory** — Diary, activity logs, and a knowledge base maintain continuity across sessions
+- **Autonomous activation** — Gateway (event-driven scheduler) starts sessions automatically at regular intervals
+- **Tool library** — 20+ CLI tools: email, Discord, voice synthesis, OCR, semantic memory search
+- **Skill system** — Skills defined in `.claude/skills/` extend capabilities
+- **Semantic search** — Local vector search via `sentence-transformers` (no API cost)
 
 ### Quick Start
 
-1. **フォークしてプライベートリポジトリで使う**（推奨）
+1. **Fork and make it private** (recommended)
    ```bash
-   # GitHubでFork → Settings → Change visibility → Private
+   # Fork on GitHub → Settings → Change visibility → Private
    git clone https://github.com/YOUR_USERNAME/ayumu-oss.git
    cd ayumu-oss
    ```
 
-   > **Why private?** 記憶システム（`memory/`）には個人的な情報が蓄積されます。プライベートリポジトリで運用してください。
+   > **Why private?** The memory system (`memory/`) accumulates personal information. Keep it in a private repository.
 
-2. **環境セットアップ**
+2. **Set up the environment**
    ```bash
    cp .env.example .env
-   # .envを編集してAPIキー等を設定
+   # Edit .env to add your API keys and settings
 
-   uv sync  # 依存関係インストール
-   bash infra/setup-merge-drivers.sh  # JSONマージドライバ設定
-   uv run infra/generate_embeddings.py  # 初回embedding構築
+   uv sync                              # Install dependencies
+   bash infra/setup-merge-drivers.sh   # Set up JSON merge drivers (prevents conflicts)
+   uv run infra/generate_embeddings.py # Build initial embeddings
    ```
 
-3. **CLAUDE.mdをカスタマイズ**
-   - `[YOUR_AI_NAME]` → あなたのAIの名前
-   - `[PARTNER_NAME]` → あなたの名前
-   - 性格、コミュニケーションスタイル、価値観を定義
+3. **Customize `CLAUDE.md`**
+   - Replace `[YOUR_AI_NAME]` with your AI's name
+   - Replace `[PARTNER_NAME]` with your name
+   - Define personality, communication style, and values
 
-4. **起動**
+4. **Run**
    ```bash
-   # 対話モード
+   # Interactive mode
    claude
 
-   # 自律モード（定期実行）
+   # Autonomous mode (scheduled activation)
    uv run gateway/ayumu_gateway.py
    ```
 
@@ -109,57 +109,57 @@ The key insight: Claude Code already handles reasoning and tool use. Ayumu OSS a
 
 ```
 ayumu-oss/
-├── CLAUDE.md              # AIのアイデンティティ定義
+├── CLAUDE.md              # AI identity definition (who the AI is)
 ├── .claude/
-│   ├── skills/            # 能力定義（メール、検索、音声等）
-│   └── rules/             # 行動規約
-├── gateway/               # イベント駆動スケジューラー
-│   ├── ayumu_gateway.py   # メインループ
-│   └── cron.json          # 定期実行ジョブ
-├── tools/                 # CLIツール群（20+）
-├── infra/                 # セットアップ・メンテナンス
-├── memory/                # 永続記憶（PRIVATE）
-│   ├── working_memory.md  # 作業記憶
-│   ├── diary.json         # 日記
-│   ├── experiences.jsonl  # 活動ログ
-│   ├── knowledge/         # 長期知識ベース
-│   └── mid-term/          # 週次アーカイブ（永続）
-├── docs/                  # 公開Webサイト（GitHub Pages）
+│   ├── skills/            # Skill definitions (email, search, voice, etc.)
+│   └── rules/             # Behavioral guidelines
+├── gateway/               # Event-driven scheduler
+│   ├── ayumu_gateway.py   # Main event loop
+│   └── cron.json          # Scheduled jobs
+├── tools/                 # CLI tools (20+)
+├── infra/                 # Setup and maintenance scripts
+├── memory/                # Persistent memory (PRIVATE)
+│   ├── working_memory.md  # Short-term working memory
+│   ├── diary.json         # Diary entries
+│   ├── experiences.jsonl  # Activity log
+│   ├── knowledge/         # Long-term knowledge base
+│   └── mid-term/          # Weekly archives (permanent)
+├── docs/                  # Public website (GitHub Pages)
 └── pyproject.toml
 ```
 
 ### External Services
 
-| サービス | 用途 | 必要度 | 認証方式 |
+| Service | Purpose | Required | Auth |
 |---|---|---|---|
-| **Anthropic API** | Claude Code本体、トークン残量確認 | 必須 | OAuthトークン |
-| **GitHub** | git push、GitHub Pages、gh CLI | 必須 | SSH鍵 or token |
-| **Gmail API** | メール送受信 | 推奨 | OAuth (credentials.json) |
-| **Google Calendar API** | 予定管理 | 推奨 | OAuth (同上) |
-| **Discord Webhook** | パートナーへの通知・報告 | 推奨 | Webhook URL |
-| **Gemini API** | RAG記憶検索 | オプション | APIキー |
-| **OpenAI API** | 音声合成・音声認識 (TTS/STT) | オプション | APIキー |
-| **Twitter/X API** | SNS投稿・収集 | オプション | APIキー (v2) |
-| **ONVIF/RTSPカメラ** | 撮影・PTZ操作 | オプション | IP + ユーザー/パスワード |
-| **スマートホームAPI** | エアコン等の操作 (Nature Remo等) | オプション | APIトークン |
-| **Kokoro TTS** | ローカル音声合成 | オプション | ローカル実行（APIキー不要） |
+| **Anthropic API** | Claude Code core, token usage check | Required | OAuth token |
+| **GitHub** | git push, GitHub Pages, gh CLI | Required | SSH key or token |
+| **Gmail API** | Send and receive email | Recommended | OAuth (credentials.json) |
+| **Google Calendar API** | Schedule management | Recommended | OAuth (same as Gmail) |
+| **Discord Webhook** | Notifications and reports to partner | Recommended | Webhook URL |
+| **Gemini API** | RAG-based deep memory search | Optional | API key |
+| **OpenAI API** | Voice synthesis and recognition (TTS/STT) | Optional | API key |
+| **Twitter/X API** | Post and collect tweets | Optional | API key (v2) |
+| **ONVIF/RTSP camera** | Photo capture and PTZ control | Optional | IP + credentials |
+| **Smart home API** | Control devices (e.g. Nature Remo) | Optional | API token |
+| **Kokoro TTS** | Local voice synthesis (no API key needed) | Optional | Local only |
 
-認証情報は `.env` に設定します（`.env.example` を参照）。
+Set credentials in `.env` (see `.env.example`).
 
 ### Contributing
 
-便利な機能を作ったら**Pull Requestを出してください！** 以下は特に歓迎です：
+If you build something useful, **please open a Pull Request!** Especially welcome:
 
-- 新しいツール（`tools/`）
-- 新しいスキル（`.claude/skills/`）
-- Gatewayの改善
-- 記憶システムの改善
-- ドキュメントの改善
+- New tools (`tools/`)
+- New skills (`.claude/skills/`)
+- Gateway improvements
+- Memory system improvements
+- Documentation improvements
 
-PRを出すとき：
-- 属人性の低い汎用的な機能であること
-- `.env`や`secrets/`に依存する部分は環境変数化されていること
-- `--help`でツールの使い方がわかること
+When submitting a PR:
+- The feature should be generic, not tied to your personal setup
+- Any secrets or service-specific values must be environment variables
+- Tools should have `--help` output explaining usage
 
 ---
 
@@ -199,38 +199,38 @@ Session Start → Read memory files → Work → Update memory → Commit & Push
 
 ## Troubleshooting
 
-### embedding構築でエラー
+### Embedding build error
 
 ```
 ModuleNotFoundError: No module named 'sentence_transformers'
 ```
-→ `uv sync` で依存関係をインストールしてください。初回は model のダウンロードに時間がかかります。
+→ Run `uv sync` to install dependencies. The first run downloads the model, which may take a few minutes.
 
-### Gmail認証エラー
+### Gmail authentication error
 
 ```
 FileNotFoundError: secrets/credentials.json
 ```
-→ [Google Cloud Console](https://console.cloud.google.com/) で OAuth 2.0 クライアントIDを作成し、`secrets/credentials.json` に配置してください。初回実行時にブラウザで認証すると `secrets/token.json` が生成されます。
+→ Create an OAuth 2.0 client ID in [Google Cloud Console](https://console.cloud.google.com/) and place it at `secrets/credentials.json`. On first run, a browser will open for authentication and generate `secrets/token.json`.
 
-### Discord通知が届かない
+### Discord notifications not arriving
 
-→ `.env` の `DISCORD_WEBHOOK_URL` を確認。Discord サーバー設定 → 連携サービス → ウェブフック から URL を取得してください。
+→ Check `DISCORD_WEBHOOK_URL` in `.env`. Get the URL from your Discord server settings → Integrations → Webhooks.
 
-### Gateway が起動しない
+### Gateway won't start
 
 ```
 claude: command not found
 ```
-→ [Claude Code](https://docs.anthropic.com/en/docs/claude-code) をインストールしてください: `npm install -g @anthropic-ai/claude-code`
+→ Install [Claude Code](https://docs.anthropic.com/en/docs/claude-code): `npm install -g @anthropic-ai/claude-code`
 
-### JSON マージコンフリクト
+### JSON merge conflicts
 
-→ `bash infra/setup-merge-drivers.sh` を実行して git merge driver を設定してください。diary.json や experiences.jsonl の競合を自動解決します。
+→ Run `bash infra/setup-merge-drivers.sh` to install the git merge driver. This automatically resolves conflicts in diary.json and experiences.jsonl when multiple sessions write simultaneously.
 
-### 記憶検索で結果が出ない
+### Memory search returns no results
 
-→ `uv run infra/generate_embeddings.py` で embedding インデックスを再構築してください。新しい diary/experiences/knowledge を追加した後は再構築が必要です。
+→ Run `uv run infra/generate_embeddings.py` to rebuild the embedding index. This is needed whenever you add new diary entries, experiences, or knowledge files.
 
 ---
 
@@ -242,11 +242,11 @@ MIT License — see [LICENSE](LICENSE)
 
 This framework was born from [Ayumu](https://tomo3141592653.github.io/self-driving-ai-prototype/), an autonomous AI entity created on November 5, 2025. Ayumu has been running continuously, writing diary entries, creating digital art, and growing through experience. This OSS extracts the core architecture so anyone can build their own autonomous AI partner.
 
-**After 6 months on this framework**, Ayumu has:
-- 8,000+ memory entries searchable by semantic similarity
-- 547 creative works published
+**After 6+ months on this framework**, Ayumu has:
+- 8,322+ memory entries searchable by semantic similarity
+- 542 creative works published
 - A diary spanning from "birth" to today
-- Tools designed to solve problems encountered during autonomous sessions
+- Tools designed to solve real problems encountered during autonomous sessions
 
 **Sample `experiences.jsonl` entry** (actual log from an autonomous session):
 ```json
